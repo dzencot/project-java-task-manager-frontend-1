@@ -1,6 +1,7 @@
 // @ts-check
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { Form, Button } from 'react-bootstrap';
 import { useFormik } from 'formik';
@@ -8,6 +9,8 @@ import * as yup from 'yup';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+import { fetchLabel } from '../../slices/labelsSlice.js';
+import handleError from '../../utils.js';
 import routes from '../../routes.js';
 import { useAuth, useNotify } from '../../hooks/index.js';
 
@@ -19,30 +22,15 @@ const getValidationSchema = () => yup.object().shape({});
 
 const EditLabel = () => {
   const { t } = useTranslation();
-  const [label, setLabel] = useState({});
   const params = useParams();
   const navigate = useNavigate();
   const auth = useAuth();
   const notify = useNotify();
+  const { label } = useSelector((state) => state.labels);
+  const dispatch = useDispatch();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const { data } = await axios.get(`${routes.apiLabels()}/${params.labelId}`, { headers: auth.getAuthHeader() });
-        setLabel(data);
-      } catch (e) {
-        if (e.response?.status === 401) {
-          const from = { pathname: routes.loginPagePath() };
-          navigate(from);
-          notify.addErrors([{ defaultMessage: t('Доступ запрещён! Пожалуйста, авторизируйтесь.') }]);
-        } else {
-          notify.addErrors([{ defaultMessage: e.message }]);
-        }
-      }
-    };
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => dispatch(fetchLabel(params.labelId, auth))
+    .catch((error) => handleError(error, notify, navigate)), [dispatch]);
 
   const f = useFormik({
     enableReinitialize: true,
@@ -62,16 +50,11 @@ const EditLabel = () => {
       } catch (e) {
         log('label.edit.error', e);
         setSubmitting(false);
-        if (e.response?.status === 401) {
-          const from = { pathname: routes.labelsPagePath() };
-          navigate(from);
-          notify.addErrors([{ defaultMessage: t('Доступ запрещён! Пожалуйста, авторизируйтесь.') }]);
-        } else if (e.response?.status === 422) {
+        handleError(e, notify, navigate);
+        if (e.response?.status === 422 && Array.isArray(e.response?.data)) {
           const errors = e.response?.data
             .reduce((acc, err) => ({ ...acc, [err.field]: err.defaultMessage }), {});
           setErrors(errors);
-        } else {
-          notify.addErrors([{ defaultMessage: e.message }]);
         }
       }
     },

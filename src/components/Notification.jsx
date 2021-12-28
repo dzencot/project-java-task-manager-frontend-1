@@ -1,11 +1,22 @@
 // @ts-check
 
 import React from 'react';
+import { useSelector } from 'react-redux';
 import { Alert } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
+
 import { useNotify } from '../hooks/index.js';
 
-const Notification = () => {
+import getLogger from '../lib/logger.js';
+
+const log = getLogger('erro boundary');
+log.enabled = true;
+
+const ErrorBoundary = () => {
+  const errors = useSelector((state) => Object.values(state)
+    .filter((currentState) => currentState.error).map(({ error }) => error));
+  log('errors', errors);
+
   const { messages } = useNotify();
   const { t } = useTranslation();
 
@@ -20,4 +31,4 @@ const Notification = () => {
   );
 };
 
-export default Notification;
+export default ErrorBoundary;

@@ -11,6 +11,7 @@ import axios from 'axios';
 import routes from '../../routes.js';
 import { useAuth, useNotify } from '../../hooks/index.js';
 
+import handleError from '../../utils.js';
 import getLogger from '../../lib/logger.js';
 
 const log = getLogger('client');
@@ -42,16 +43,11 @@ const NewStatus = () => {
       } catch (e) {
         log('label.create.error', e);
         setSubmitting(false);
-        if (e.response?.status === 401) {
-          const from = { pathname: routes.loginPagePath() };
-          navigate(from);
-          notify.addErrors([{ defaultMessage: t('Доступ запрещён! Пожалуйста, авторизируйтесь.') }]);
-        } else if (e.response?.status === 422 && e.response?.data) {
+        handleError(e, notify, navigate);
+        if (e.response?.status === 422 && Array.isArray(e.response?.data)) {
           const errors = e.response?.data
             .reduce((acc, err) => ({ ...acc, [err.field]: err.defaultMessage }), {});
           setErrors(errors);
-        } else {
-          notify.addErrors([{ defaultMessage: e.message }]);
         }
       }
     },

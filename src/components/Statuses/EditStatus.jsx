@@ -1,6 +1,7 @@
 // @ts-check
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { Form, Button } from 'react-bootstrap';
 import { useFormik } from 'formik';
@@ -10,6 +11,8 @@ import axios from 'axios';
 
 import routes from '../../routes.js';
 import { useAuth, useNotify } from '../../hooks/index.js';
+import handleError from '../../utils.js';
+import { fetchTaskStatus } from '../../slices/taskStatusesSlice.js';
 
 import getLogger from '../../lib/logger.js';
 
@@ -20,37 +23,20 @@ const getValidationSchema = () => yup.object().shape({});
 const EditStatus = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [status, setStatus] = useState({});
   const params = useParams();
   const auth = useAuth();
   const notify = useNotify();
-  // const dispatch = useDispatch();
+  const dispatch = useDispatch();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const { data } = await axios.get(`${routes.apiStatuses()}/${params.statusId}`, { headers: auth.getAuthHeader() });
-        setStatus(data);
-      } catch (e) {
-        if (e.response?.status === 401) {
-          const from = { pathname: routes.loginPagePath() };
-          navigate(from);
-          notify.addErrors([{ defaultMessage: t('Доступ запрещён! Пожалуйста, авторизируйтесь.') }]);
-        } else if (e.response?.status === 422 && e.response?.data) {
-          notify.addErrors(e.response?.data);
-        } else {
-          notify.addErrors([{ defaultMessage: e.message }]);
-        }
-      }
-    };
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { taskStatus } = useSelector((state) => state.taskStatuses);
+
+  useEffect(() => dispatch(fetchTaskStatus(params.taskStatusId, auth))
+    .catch((error) => handleError(error, notify, navigate)), [dispatch]);
 
   const f = useFormik({
     enableReinitialize: true,
     initialValues: {
-      name: status.name,
+      name: taskStatus.name,
     },
     validationSchema: getValidationSchema(),
     onSubmit: async ({ name }, { setSubmitting, setErrors }) => {
@@ -66,16 +52,11 @@ const EditStatus = () => {
       } catch (e) {
         log('label.edit.error', e);
         setSubmitting(false);
-        if (e.response?.status === 401) {
-          const from = { pathname: routes.loginPagePath() };
-          navigate(from);
-          notify.addErrors([{ defaultMessage: t('Доступ запрещён! Пожалуйста, авторизируйтесь.') }]);
-        } else if (e.response?.status === 422) {
+        handleError(e, notify, navigate);
+        if (e.response?.status === 422 && Array.isArray(e.response?.data)) {
           const errors = e.response?.data
             .reduce((acc, err) => ({ ...acc, [err.field]: err.defaultMessage }), {});
           setErrors(errors);
-        } else {
-          notify.addErrors([{ defaultMessage: e.message }]);
         }
       }
     },

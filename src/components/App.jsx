@@ -1,20 +1,20 @@
 // @ts-check
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   Routes,
   Route,
   useNavigate,
 } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
 import { ToastContainer } from 'react-toastify';
 
-import { AuthContext } from '../contexts/index.js';
 import Navbar from './Navbar.jsx';
 import Welcome from './Welcome.jsx';
 import Login from './Login.jsx';
 import Registration from './Registration.jsx';
 import NotFoundPage from './NotFoundPage.jsx';
-import Users from './Users/Users.jsx';
+import UsersComponent from './Users/Users.jsx';
 import EditUser from './Users/EditUser.jsx';
 
 import Statuses from './Statuses/Statuses.jsx';
@@ -33,62 +33,58 @@ import EditTask from './Tasks/EditTask.jsx';
 import routes from '../routes.js';
 import Notification from './Notification.jsx';
 
-import { useNotify } from '../hooks/index.js';
+import { fetchUsers } from '../slices/usersSlice.js';
+import { fetchLabels } from '../slices/labelsSlice.js';
+import { fetchTaskStatuses } from '../slices/taskStatusesSlice.js';
+import { fetchTasks } from '../slices/tasksSlice.js';
+
+import { useNotify, useAuth } from '../hooks/index.js';
+import handleError from '../utils.js';
 
 import getLogger from '../lib/logger.js';
 
 const log = getLogger('App');
 log.enabled = true;
 
-const AuthProvider = ({ children }) => {
-  const currentUser = JSON.parse(localStorage.getItem('user'));
-  const navigate = useNavigate();
-  const [user, setUser] = useState(currentUser || null);
-
-  const logIn = (userData) => {
-    const userAuth = {
-      ...userData,
-      username: userData.name,
-    };
-    localStorage.setItem('user', JSON.stringify(userAuth));
-    setUser(userAuth);
-  };
-
-  const logOut = () => {
-    localStorage.removeItem('user');
-    setUser(null);
-    const from = { pathname: routes.homePagePath() };
-
-    navigate(from);
-  };
-
-  const getAuthHeader = () => {
-    const userData = JSON.parse(localStorage.getItem('user'));
-
-    return userData?.token ? { Authorization: `Bearer ${userData.token}` } : {};
-  };
-
-  return (
-    <AuthContext.Provider value={{
-      logIn, logOut, getAuthHeader, user,
-    }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
 const App = () => {
   const notify = useNotify();
   const navigate = useNavigate();
+  const auth = useAuth();
+  const dispatch = useDispatch();
   useEffect(() => {
     // TODO: перенести нотификацию в слайсы
     notify.clean();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    const dataRoutes = [
+      {
+        name: 'users',
+        getData: () => fetchUsers(),
+        isSecurity: false,
+      },
+      {
+        name: 'labels',
+        getData: () => fetchLabels(auth),
+        isSecurity: true,
+      },
+      {
+        name: 'taskStatuses',
+        getData: () => fetchTaskStatuses(auth),
+        isSecurity: true,
+      },
+      {
+        name: 'tasks',
+        getData: () => fetchTasks(auth),
+        isSecurity: true,
+      },
+    ];
+    const promises = dataRoutes.filter(({ isSecurity }) => isSecurity && auth.user)
+      .map(({ getData }) => dispatch(getData()));
+    Promise.all(promises)
+      .catch((error) => handleError(error, notify, navigate));
   }, [navigate]);
 
   return (
-    <AuthProvider>
+    <>
       <Navbar />
       <div className="container wrapper flex-grow-1">
         <Notification />
@@ -99,7 +95,7 @@ const App = () => {
           <Route path={routes.signupPagePath()} element={<Registration />} />
 
           <Route path={routes.usersPagePath()}>
-            <Route path="" element={<Users />} />
+            <Route path="" element={<UsersComponent />} />
             <Route path=":userId/edit" element={<EditUser />} />
           </Route>
 
@@ -131,7 +127,7 @@ const App = () => {
         </div>
       </footer>
       <ToastContainer />
-    </AuthProvider>
+    </>
   );
 };
 

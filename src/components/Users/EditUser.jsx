@@ -8,6 +8,7 @@ import axios from 'axios';
 import * as yup from 'yup';
 import { useNavigate, useParams } from 'react-router-dom';
 
+import handleError from '../../utils.js';
 import { useAuth, useNotify } from '../../hooks/index.js';
 import routes from '../../routes.js';
 
@@ -33,15 +34,7 @@ const Registration = () => {
         const { data } = await axios.get(`${routes.apiUsers()}/${params.userId}`, { headers: auth.getAuthHeader() });
         setUser(data);
       } catch (e) {
-        if (e.response?.status === 401) {
-          const from = { pathname: routes.loginPagePath() };
-          navigate(from);
-          notify.addErrors([{ defaultMessage: t('Доступ запрещён! Пожалуйста, авторизируйтесь.') }]);
-        } else if (e.response?.status === 422 && Array.isArray(e.response?.data)) {
-          notify.addErrors(e.response?.data);
-        } else {
-          notify.addErrors([{ defaultMessage: e.message }]);
-        }
+        handleError(e, notify, navigate);
       }
     };
     fetchData();
@@ -72,20 +65,14 @@ const Registration = () => {
         const from = { pathname: routes.homePagePath() };
         navigate(from);
         notify.addMessage(t('registrationSuccess'));
-        // dispatch(actions.addTask(task));
       } catch (e) {
         log('create.error', e);
         setSubmitting(false);
-        if (e.response?.status === 401) {
-          const from = { pathname: routes.loginPagePath() };
-          navigate(from);
-          notify.addErrors([{ defaultMessage: t('Доступ запрещён! Пожалуйста, авторизируйтесь.') }]);
-        } else if (e.response?.status === 422 && Array.isArray(e.response?.data)) {
+        handleError(e, notify, navigate);
+        if (e.response?.status === 422 && Array.isArray(e.response?.data)) {
           const errors = e.response?.data
             .reduce((acc, err) => ({ ...acc, [err.field]: err.defaultMessage }), {});
           setErrors(errors);
-        } else {
-          notify.addErrors([{ defaultMessage: e.message }]);
         }
       }
     },

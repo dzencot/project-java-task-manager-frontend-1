@@ -1,6 +1,7 @@
 // @ts-check
 
 import React, { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { Form, Button } from 'react-bootstrap';
 import { useFormik } from 'formik';
@@ -8,6 +9,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import * as yup from 'yup';
 import axios from 'axios';
 
+import handleError from '../../utils.js';
 import routes from '../../routes.js';
 import { useAuth, useNotify } from '../../hooks/index.js';
 
@@ -20,13 +22,11 @@ const getValidationSchema = () => yup.object().shape({});
 
 const EditTask = () => {
   const { t } = useTranslation();
+  const executors = useSelector((state) => state.users?.users);
+  const labels = useSelector((state) => state.labels?.labels);
+  const taskStatuses = useSelector((state) => state.taskStatuses?.taskStatuses);
 
-  const [taskData, setTaskData] = useState({
-    task: {},
-    executors: [],
-    labels: [],
-    statuses: [],
-  });
+  const [task, setTask] = useState({});
   const params = useParams();
   const auth = useAuth();
   const notify = useNotify();
@@ -35,45 +35,15 @@ const EditTask = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [
-          { data: currentTaskData },
-          { data: executorsData },
-          { data: labelsData },
-          { data: statusesData },
-        ] = await Promise.all([
-          axios.get(`${routes.apiTasks()}/${params.taskId}`, { headers: auth.getAuthHeader() }),
-          axios.get(routes.apiUsers(), { headers: auth.getAuthHeader() }),
-          axios.get(routes.apiLabels(), { headers: auth.getAuthHeader() }),
-          axios.get(routes.apiStatuses(), { headers: auth.getAuthHeader() }),
-        ]);
-        setTaskData({
-          task: currentTaskData,
-          executors: executorsData,
-          labels: labelsData,
-          statuses: statusesData,
-        });
+        const { data: currentTaskData } = await axios.get(`${routes.apiTasks()}/${params.taskId}`, { headers: auth.getAuthHeader() });
+        setTask(currentTaskData);
       } catch (e) {
-        if (e.response?.status === 401) {
-          const from = { pathname: routes.loginPagePath() };
-          navigate(from);
-          notify.addErrors([{ defaultMessage: t('Доступ запрещён! Пожалуйста, авторизируйтесь.') }]);
-        } else if (e.response?.status === 422 && Array.isArray(e.response?.data)) {
-          notify.addErrors(e.response?.data);
-        } else {
-          notify.addErrors([{ defaultMessage: e.message }]);
-        }
+        handleError(e, notify, navigate);
       }
     };
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const {
-    task,
-    executors,
-    labels,
-    statuses,
-  } = taskData;
 
   const f = useFormik({
     enableReinitialize: true,
@@ -168,7 +138,7 @@ const EditTask = () => {
             name="status"
           >
             <option value="">{null}</option>
-            {statuses
+            {taskStatuses
               .map((status) => <option key={status.id} value={status.id}>{status.name}</option>)}
           </Form.Select>
           <Form.Control.Feedback type="invalid">
